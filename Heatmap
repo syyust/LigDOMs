@@ -1,0 +1,38 @@
+############## LIGNIN
+# Load necessary packages
+library(corrplot)  # For correlation plots
+library(Hmisc)     # For correlation matrix with p-values
+
+# Set working directory and read data
+setwd("C:/Users/Lenovo/Desktop/木质素理论/l汇总/不对称热图/")
+data <- read.csv("lignin.csv")
+
+# Extract asymmetric matrix (assuming you want to compare data1 and data2)
+# Assume data1 is the first set of columns, data2 is the second set of columns
+n1 <- 19  # Number of columns for data1
+n2 <- 7   # Number of columns for data2
+data2 <- data[, 1:n1]
+data1 <- data[, (n1 + 1):(n1 + n2)]
+
+# Calculate asymmetric correlation matrix and p-value matrix using Spearman method
+cor_matrix <- cor(cbind(data1, data2), method = "spearman")[colnames(data1), colnames(data2)]
+p_matrix <- rcorr(as.matrix(cbind(data1, data2)), type = "spearman")$P[colnames(data1), colnames(data2)]
+
+# Set font family (commented out)
+# par(family = "Times New Roman")
+
+# Draw asymmetric correlation heatmap and add significance annotations
+corrplot(cor_matrix, 
+         method = 'circle',     # Use circles to represent correlations
+         type = 'full',         # Show full matrix
+         diag = FALSE,          # Don't show diagonal
+         tl.col = "black",      # Text label color
+         tl.srt = 45,           # Text label rotation angle
+         cl.pos = "b",          # Color legend position (bottom)
+         cl.ratio = 0.1,        # Color legend width ratio
+         col = colorRampPalette(c("#b52330", "white", "#286faf"))(100),  # Color palette (red-white-blue)
+         p.mat = p_matrix,      # P-value matrix for significance testing
+         insig = 'label_sig',   # Label significant correlations
+         sig.level = c(0.001, 0.01, 0.05),  # Significance levels
+         pch.cex = 1.5,         # Significance symbol size
+         pch.col = 'grey20')    # Significance symbol color

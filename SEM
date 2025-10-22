@@ -1,0 +1,68 @@
+# Load required libraries for Structural Equation Modeling (SEM)
+library(lavaan)    # For Structural Equation Modeling
+library(semPlot)   # For plotting SEM diagrams
+library(dplyr)     # For data manipulation
+library(caret)     # For nearZeroVar function
+library(corrplot)  # For correlation plots
+
+# Read data file - currently using ligDOMDA.csv
+data <- read.csv('C:/Users/Lenovo/Desktop/木质素理论/l汇总/SEM/ligDOMDA.csv') # DA data
+# data <- read.csv('C:/Users/Lenovo/Desktop/木质素理论/l汇总/SEM/DOMDA.csv') # DOMDA data
+# data <- read.csv('C:/Users/Lenovo/Desktop/木质素理论/l汇总/SEM/ligDOMRA.csv') # RA data
+
+# Remove rows with missing values
+data <- na.omit(data)
+
+# Remove near-zero variance variables to improve model stability
+nzv <- nearZeroVar(data, saveMetrics = TRUE)
+data <- data[, !nzv$nzv]
+
+# Identify outliers using Z-score method (threshold = 3 standard deviations)
+z_threshold <- 3
+z_scores <- apply(data, 2, scale)  # Calculate Z-scores for all columns
+outliers_z <- which(abs(z_scores) > z_threshold, arr.ind = TRUE)
+
+# Remove rows containing outliers
+data <- data[-unique(outliers_z[, "row"]), ]
+
+# Standardize data (mean = 0, variance = 1) for better model convergence
+data_scaled <- scale(data)
+
+# Define the Structural Equation Model
+model <- '
+  # Measurement model (commented out - using observed variables only)
+  # climate =~  bio12
+  # watershed =~  grassland
+  # geo =~ DEM + y + x
+  # soil =~ t_silt + t_clay 
+  # OC =~ DOC 
+  # diversity =~  DR + DA + DP + DC 
+
+  # Structural model (path relationships)
+  DA ~ DOC + solar + bio12 + t_clay + t_silt 
+  DADOM ~ DOC +  bio12 + t_clay 
+  DOC ~ forest + DEM + t_sand + t_silt 
+  forest ~ bio12 + solar + DEM + t_clay + t_sand
+'
+
+# Fit the SEM model using Maximum Likelihood estimation with robust standard errors
+fit <- sem(model, data = data_scaled, estimator = "MLR")
+
+# Optional diagnostic checks (commented out):
+# Check variance of observed variables
+# lavInspect(fit, "theta")
+
+# Check covariance matrix of latent variables  
+# lavInspect(fit, "cov.lv")
+
+# Display comprehensive model results
+summary(fit, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
+
+# Step 6: Verify model accuracy with key fit indices
+fitMeasures(fit, c("chisq", "df", "pvalue", "gfi", "cfi", "rmr", "srmr", "rmsea"))
+
+# Plot path diagram (commented out):
+# semPaths(fit, "std", layout = "spring", edge.label.cex = 0.8)
+
+# Alternative path diagram with different settings (commented out):
+# semPaths(fit, "std", layout = "spring", edge.label.cex = 0.8, residuals=FALSE, fade=FALSE)

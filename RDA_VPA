@@ -1,0 +1,130 @@
+## Load required packages (assumed already installed)
+library(tidyverse)
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+
+## Read lignin data
+setwd("C:/Users/Lenovo/Desktop/木质素理论/h汇总/rdacca/")###
+fc<- read.csv("env.csv",row.names = 1)  # Environmental data with row names
+sp<- read.csv("data.csv",row.names = 1)  # Species/data with row names
+#head(fc)# View data
+#head(sp)
+
+## Data transformation
+spp=decostand(sp,method = "hellinger")### Perform hellinger transformation
+#head(spp)
+#fcc=log10(fc)### Perform log transformation
+fcc=as.data.frame(scale(fc))  # Standardize environmental data
+
+## Basis for choosing RDA vs CCA
+# DCA discriminant analysis, choose sorting analysis model based on first value of Axis lengths row
+# Axis Lengths >4.0 - CCA (based on unimodal model, Canonical Correspondence Analysis);
+# If between 3.0-4.0 - RDA/CCA both acceptable;
+# If less than 3.0 - RDA (based on linear model, Redundancy Analysis)
+decorana(veg = spp)
+
+## Redundancy Analysis (rda)
+uu=rda(spp~.,fcc)### Perform redundancy analysis
+uu
+ii=summary(uu)### View analysis results Type I scaling, default Type I
+ii
+ii.2=summary(uu,scaling = 2)### View analysis results Type II scaling
+ii.2
+
+## Extract canonical coefficients
+rda_coef <- coef(uu)
+rda_coef
+
+## r2 adjustment
+r2 <- RsquareAdj(uu)
+rda_noadj <- r2$r.squared # Original R2
+rda_noadj
+rda_adj <- r2$adj.r.squared # Adjusted R2
+rda_adj
+
+# Display adjustment
+RsquareAdj(uu)
+
+## Permutation test
+# Permutation test for all constrained axes, based on 999 permutations
+uu_test <- anova(uu, permutations = 999)
+uu_test 
+# Or use alternative method
+uu_test.2 <- anova.cca(uu, step = 1000)
+uu_test.2 
+
+# Test each constrained axis individually, based on 999 permutations
+uu_test_axis <- anova(uu, by = 'axis', permutations = 999)
+uu_test_axis
+# Or use alternative method
+uu_test_axis.2 <- anova.cca(uu, by = 'axis', step = 1000)
+uu_test_axis.2
+
+# Verify model significance and importance of each variable
+permutest(uu,permu=999)
+envfit(uu,fcc,permu=999)
+
+# p-value adjustment (Bonferroni as example)
+uu_test_axis$`Pr(>F)` <- p.adjust(uu_test_axis$`Pr(>F)`, method = 'bonferroni')
+uu_test_axis
+
+# Calculate variance inflation factor, theoretically >10.0 should be discarded, but some consider >4.0 should be discarded
+vif.cca(uu)
+
+# Variation partitioning
+rda_vp <- varpart(spp, fcc[c('Longitude','Elevation')], fcc[c('Farmland','Forest','Grassland','Wetland','Clay','Sand','Silt'
+)],fcc[c('MAT','MAP')],fcc[c('Radiation.intensity','DOC')])
+rda_vp
+par(mar = c(4, 4, 2, 1))  # Reduce margins
+plot(rda_vp, digits =2, Xnames = c('Geographical', 'Watershed', 'Climatic', 'Other'))
+
+# Prepare data for plotting
+sp=as.data.frame(ii$species[,1:2])*4### Extract species coordinates, multiply by 4 to make plot clearer
+st=as.data.frame(ii$sites[,1:2])*0.4### Extract site coordinates, adjust scaling as needed
+yz=as.data.frame(ii$biplot[,1:2])*0.8### Extract environmental variable coordinates
+
+# Define plot styling parameters
+axis_title_font_size <- element_text(size = 24)
+tick_font_size <- element_text(size = 20) 
+axis_line_size <- element_line(size = 1.5)
+
+# Create RDA plot
+ggplot() +
+  
+  # Add species points
+  geom_point(data = sp, aes(x = RDA1, y = RDA2), 
+             shape = 19,  # Solid circle
+             colour = "black",  # Point border color
+             alpha = 0.1,  # Point transparency
+             size = 4) +
+  geom_text_repel(data = sp,aes(RDA1,RDA2,label=NA))+
+  
+  # Add site points
+  geom_point(data = st, aes(x = RDA1, y = RDA2), 
+             shape = 21,  # Hollow circle
+             colour = "green",  # Point border color
+             fill = NA,  # Point fill color transparent
+             size = 4) +
+  geom_text_repel(data = st,aes(RDA1,RDA2,label= NA),size=4)+
+  
+  # Add environmental variable arrows
+  geom_segment(data = yz,aes(x = 0, y = 0, xend = RDA1, yend = RDA2), 
+               arrow = arrow(angle=22.5,length = unit(0.35,"cm"),
+                             type = "closed"),linetype=1, size=1,colour = c("purple","red","purple","purple","purple","purple","purple","NA","purple",
+                                                                            "purple","purple","purple","purple","purple","purple"))+
+  geom_text_repel(data = yz,aes(RDA1,RDA2,label=row.names(yz)),size=5)+
+  
+  # Add labels and styling
+  labs(x="RDA1 43.76%",y="RDA2 28.49%")+
+  geom_hline(yintercept=0,linetype=3,size=1) + 
+  geom_vline(xintercept=0,linetype=3,size=1)+
+  theme_bw()+theme(panel.grid=element_blank())+
+  theme(axis.title.x = axis_title_font_size, axis.title.y = axis_title_font_size)+
+  theme(axis.text.x = tick_font_size, axis.text.y = tick_font_size) +
+  theme(axis.line = axis_line_size)
+
+# Alternative color schemes (commented out):
+# colour = c("purple","red","purple","purple","purple","purple","purple","white","purple",
+#           "purple","purple","purple","purple","purple","purple")
+# colour = "purple"
